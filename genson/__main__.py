@@ -2,6 +2,9 @@ import argparse
 import sys
 import re
 import json
+
+import ruamel.yaml
+
 from . import SchemaBuilder, __version__
 
 
@@ -10,6 +13,7 @@ class CLI:
         self._make_parser(prog)
         self._prepare_args()
         self.builder = SchemaBuilder(schema_uri=self.args.schema_uri)
+        self.input_file_format = None
 
     def run(self):
         if not self.args.schema and not self.args.object:
@@ -20,16 +24,27 @@ class CLI:
 
     def add_schemas(self):
         for fp in self.args.schema:
-            self._call_with_json_from_fp(self.builder.add_schema, fp)
+            self._call_from_fp(self.builder.add_schema, fp)
             fp.close()
 
     def add_objects(self):
         for fp in self.args.object:
-            self._call_with_json_from_fp(self.builder.add_object, fp)
+            self._call_from_fp(self.builder.add_object, fp)
             fp.close()
 
     def print_output(self):
-        print(self.builder.to_json(indent=self.args.indent))
+        if self.args.format is not None:
+            output_format = self.args.format
+        else:
+            output_format = self.input_file_format
+
+        if output_format == 'json':
+            print(self.builder.to_json(indent=self.args.indent))
+        elif output_format == 'yaml':
+            yaml = ruamel.yaml.YAML(typ='safe')
+            print(self.builder.to_yaml())
+        else:
+            pass
 
     def fail(self, message):
         self.parser.error(message)
@@ -57,15 +72,21 @@ class CLI:
             contain multiple JSON objects/schemas. You can pass any string. A
             few cases ('newline', 'tab', 'space') will get converted to a
             whitespace character. If this option is omitted, the parser will
-            try to auto-detect boundaries.""")
+            try to auto-detect boundaries.
+
+            This option is ignored for YAML files.""")
         self.parser.add_argument(
             '-e', '--encoding', type=str, metavar='ENCODING',
             help="""Use ENCODING instead of the default system encoding
             when reading files. ENCODING must be a valid codec name or
             alias.""")
         self.parser.add_argument(
+            '-f', '--format', type=str, choices=['json', 'yaml'],
+            help="""Output format for the generated schema; defaults to the
+            type of the input file""")
+        self.parser.add_argument(
             '-i', '--indent', type=int, metavar='SPACES',
-            help="""Pretty-print the output, indenting SPACES spaces.""")
+            help="""Pretty-print the output, indenting SPACES spaces. This option is ignored for YAML files.""")
         self.parser.add_argument(
             '-s', '--schema', action='append', default=[], type=file_type,
             help="""File containing a JSON Schema (can be specified multiple
@@ -112,22 +133,39 @@ class CLI:
         elif self.args.delimiter == 'space':
             self.args.delimiter = ' '
 
-    def _call_with_json_from_fp(self, method, fp):
-        for json_string in self._get_json_strings(fp.read().strip()):
-            try:
-                json_obj = json.loads(json_string)
-            except json.JSONDecodeError as err:
-                self.fail('invalid JSON in {}: {}'.format(fp.name, err))
-            method(json_obj)
+    def _call_from_fp(self, method, fp):
+        yaml = ruamel.yaml.YAML(typ='safe')
 
-    def _get_json_strings(self, raw_text):
-        if self.args.delimiter is None or self.args.delimiter == '':
-            json_strings = self._detect_json_strings(raw_text)
+        for string_from_file in self._get_strings(fp.read().strip()):
+            try:
+                loaded_obj = json.loads(string_from_file)
+                self.input_file_format = 'json'
+            except json.JSONDecodeError as json_err:
+#                self.fail('invalid JSON in {}: {}'.format(fp.name, json_err))
+                try:
+                    loaded_obj = yaml.load(string_from_file)
+                except ruamel.yaml.scanner.ScannerError as yaml_err:
+                    self.fail('invalid JSON (err: {}) and YAML (err: {}) in {}'.format(json_err, yaml_err, fp.name))
+                else:
+                    #
+                    # if a document looks like YAML but isn't valid for some
+                    # reason, we should get a ScannerError. That exception will
+                    # not get thrown if a document isn't YAML at all (e.g. XML)
+                    if isinstance(loaded_obj, str):
+                        raise TypeError(f"Document {fp.name} appears to not be JSON or YAML")
+
+                self.input_file_format = 'yaml'
+
+            method(loaded_obj)
+
+    def _get_strings(self, raw_text):
+        if self.input_file_format == 'yaml' or (self.args.delimiter is None or self.args.delimiter == ''):
+            string_list = self._detect_json_strings(raw_text)
         else:
-            json_strings = raw_text.split(self.args.delimiter)
+            string_list = raw_text.split(self.args.delimiter)
 
         # sanitize data before returning
-        return [string.strip() for string in json_strings if string.strip()]
+        return [string.strip() for string in string_list if string.strip()]
 
     @staticmethod
     def _detect_json_strings(raw_text):

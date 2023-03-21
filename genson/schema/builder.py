@@ -1,5 +1,8 @@
 import json
 from warnings import warn
+
+from ruamel.yaml import YAML
+
 from .node import SchemaNode
 from .strategies import BASIC_SCHEMA_STRATEGIES
 
@@ -100,6 +103,10 @@ class SchemaBuilder(metaclass=_MetaSchemaBuilder):
         schema = self._base_schema()
         schema.update(self._root_node.to_schema())
         return schema
+
+    def to_yaml(self, *args, **kwargs):
+        yaml = YAML(typ=['rt', 'string'])
+        return yaml.dump_to_string(self.to_schema(), *args, **kwargs)
 
     def to_json(self, *args, **kwargs):
         """
