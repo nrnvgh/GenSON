@@ -33,6 +33,11 @@ class TestMethods(base.SchemaBuilderTestCase):
             self.builder.to_json(),
             '{"$schema": "%s"}' % SchemaBuilder.DEFAULT_URI)
 
+    def test_to_yaml(self):
+        self.assertEqual(
+            self.builder.to_yaml(),
+            "- $schema: " % SchemaBuilder.DEFAULT_URI)
+
     def test_add_schema_with_uri_default(self):
         test_uri = 'TEST_URI'
         self.add_schema({"$schema": test_uri, "type": "null"})
