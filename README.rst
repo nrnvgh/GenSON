@@ -55,11 +55,11 @@ The package includes a ``genson`` executable that allows you to access this func
 .. code-block:: bash
 
     $ genson --help
-
+    
 .. code-block::
 
-    usage: genson [-h] [--version] [-d DELIM] [-e ENCODING] [-i SPACES]
-                  [-s SCHEMA] [-$ SCHEMA_URI]
+    usage: genson [-h] [--version] [-d DELIM] [-e ENCODING] [-f {json,yaml}]
+                  [-i SPACES] [-s SCHEMA] [-$ SCHEMA_URI]
                   ...
 
     Generate one, unified JSON Schema from one or more JSON objects and/or JSON
@@ -69,7 +69,7 @@ The package includes a ``genson`` executable that allows you to access this func
       object                Files containing JSON objects (defaults to stdin if no
                             arguments are passed).
 
-    optional arguments:
+    options:
       -h, --help            Show this help message and exit.
       --version             Show version number and exit.
       -d DELIM, --delimiter DELIM
@@ -78,13 +78,17 @@ The package includes a ``genson`` executable that allows you to access this func
                             any string. A few cases ('newline', 'tab', 'space')
                             will get converted to a whitespace character. If this
                             option is omitted, the parser will try to auto-detect
-                            boundaries.
+                            boundaries. This option is ignored for YAML files.
       -e ENCODING, --encoding ENCODING
                             Use ENCODING instead of the default system encoding
                             when reading files. ENCODING must be a valid codec
                             name or alias.
+      -f {json,yaml}, --format {json,yaml}
+                            Output format for the generated schema; defaults to
+                            the type of the input file
       -i SPACES, --indent SPACES
-                            Pretty-print the output, indenting SPACES spaces.
+                            Pretty-print the output, indenting SPACES spaces. This
+                            option is ignored for YAML files.
       -s SCHEMA, --schema SCHEMA
                             File containing a JSON Schema (can be specified
                             multiple times to merge schemas).
